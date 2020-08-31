@@ -25,24 +25,28 @@
 
 use std::{fs, env};
 
-enum AddressPattern {
-    Lines(Vec<usize>),
-    RegexPattern(String),
-    Compound
-}
-
 // A simplified introduction to vi/ex/ed "address patterns":
 //
 // N                1-indexed line number
 // M,N              a range of lines, 1-indexed inclusive of end
 // M,+N             a range specified by a start and a count
 // /pattern/        a regular expression
+enum AddressPattern {
+    Line(usize),
+    LineRange(usize, usize),
+    LineRelativeRange { start: usize, count: usize },
+    RegexPattern(String),
+    Compound
+}
 
-fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, String> {
-    let lines = pattern_str.split(",")
+fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
+    if let Ok(x) = pattern_str.parse() {
+        return Ok(AddressPattern::Line(x));
+    }
+    let lines: Vec<usize> = pattern_str.split(",")
         .map(|x| { x.parse().expect("Unable to parse number") })
         .collect();
-    Ok(AddressPattern::Lines(lines))
+    Ok(AddressPattern::LineRange(lines[0], lines[1]))
 }
 
 struct Predicate {
@@ -51,8 +55,9 @@ struct Predicate {
 
 impl Predicate {
     fn matches(&self, line_number: usize, line: &str) -> bool {
-        match &self.pattern {
-            AddressPattern::Lines(l) => l.contains(&line_number),
+        match self.pattern {
+            AddressPattern::Line(n) => n == line_number,
+            AddressPattern::LineRange(start, end) => (start..end).contains(&line_number),
             _ => false
         }
     }
