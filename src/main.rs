@@ -23,9 +23,10 @@
 // //    println!("Hello, world!");
 // }
 
-use std::{fs, env, io};
+use std::{fs, io};
 use std::io::Read;
 use regex::Regex;
+use clap::{Arg, App};
 
 // A simplified introduction to vi/ex/ed "address patterns":
 //
@@ -83,22 +84,37 @@ fn main() {
     // Open streams
     // Guess language if not specified
     // Match lines and set/toggle comment status
-    let args: Vec<String> = env::args().collect();
+    let args = App::new("toggle-comment")
+        .version("0.1")
+        .arg(Arg::with_name("comment_prefix")
+            .value_name("PREFIX")
+            .short("c")
+            .long("comment-prefix")
+            .takes_value(true)
+            .help("Line comment prefix string [default: \"# \"]"))
+        .arg(Arg::with_name("PATTERN")
+            .help("ed-like address pattern for selecting lines.")
+            .required(true))
+        .arg(Arg::with_name("INPUT")
+            .help("Sets the input file."))
+        .get_matches();
 
-    let pattern = try_parse_pattern(&args[1]).expect("Unable to parse pattern");
-    let contents = if args.len() > 2 {
-        fs::read_to_string(&args[2]).expect("Unable to read file")
+    let pattern_str = args.value_of("PATTERN").unwrap_or("");
+    let pattern = try_parse_pattern(pattern_str).expect("Unable to parse pattern");
+    let contents = if let Some(file_path) = args.value_of("INPUT") {
+        fs::read_to_string(file_path).expect("Unable to read file")
     } else {
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
         buffer
     };
     let predicate = build_predicate(pattern);
+    let prefix = args.value_of("comment_prefix").unwrap_or("# ");
 
     for (idx, line) in contents.lines().enumerate() {
         let line_number = idx+1;
         if predicate.matches(line_number, line) {
-            println!("# {}", line);
+            println!("{}{}", prefix, line);
         } else {
             println!("{}", line);
         }
