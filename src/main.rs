@@ -35,6 +35,7 @@ enum AddressPattern {
     Line(usize),
     LineRange(usize, usize),
     LineRelativeRange { start: usize, count: usize },
+    SubstringPattern(String),
     RegexPattern(String),
     Compound
 }
@@ -42,6 +43,8 @@ enum AddressPattern {
 fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
     if let Ok(x) = pattern_str.parse() {
         return Ok(AddressPattern::Line(x));
+    } else if pattern_str.matches(|x: char| x.is_alphabetic()).count() > 0 {
+        return Ok(AddressPattern::SubstringPattern(pattern_str.to_owned()));
     }
     let lines: Vec<usize> = pattern_str.split(",")
         .map(|x| { x.parse().expect("Unable to parse number") })
@@ -55,9 +58,10 @@ struct Predicate {
 
 impl Predicate {
     fn matches(&self, line_number: usize, line: &str) -> bool {
-        match self.pattern {
-            AddressPattern::Line(n) => n == line_number,
-            AddressPattern::LineRange(start, end) => (start..end).contains(&line_number),
+        match &self.pattern {
+            AddressPattern::Line(n) => *n == line_number,
+            AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
+            AddressPattern::SubstringPattern(s) => line.contains(s),
             _ => false
         }
     }
