@@ -23,7 +23,8 @@
 // //    println!("Hello, world!");
 // }
 
-use std::{fs, env};
+use std::{fs, env, io};
+use std::io::Read;
 use regex::Regex;
 
 // A simplified introduction to vi/ex/ed "address patterns":
@@ -85,7 +86,13 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let pattern = try_parse_pattern(&args[1]).expect("Unable to parse pattern");
-    let contents = fs::read_to_string(&args[2]).expect("Unable to read file");
+    let contents = if args.len() > 2 {
+        fs::read_to_string(&args[2]).expect("Unable to read file")
+    } else {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
+        buffer
+    };
     let predicate = build_predicate(pattern);
 
     for (idx, line) in contents.lines().enumerate() {
