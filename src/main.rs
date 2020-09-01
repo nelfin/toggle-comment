@@ -24,6 +24,7 @@
 // }
 
 use std::{fs, env};
+use regex::Regex;
 
 // A simplified introduction to vi/ex/ed "address patterns":
 //
@@ -36,11 +37,15 @@ enum AddressPattern {
     LineRange(usize, usize),
     LineRelativeRange { start: usize, count: usize },
     SubstringPattern(String),
-    RegexPattern(String),
+    RegexPattern(Regex),
     Compound
 }
 
 fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
+    if pattern_str.starts_with("/") {
+        let x = pattern_str.trim_start_matches("/").trim_end_matches("/");
+        return Ok(AddressPattern::RegexPattern(Regex::new(x).unwrap()));
+    }
     if let Ok(x) = pattern_str.parse() {
         return Ok(AddressPattern::Line(x));
     } else if pattern_str.matches(|x: char| x.is_alphabetic()).count() > 0 {
@@ -62,6 +67,7 @@ impl Predicate {
             AddressPattern::Line(n) => *n == line_number,
             AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
             AddressPattern::SubstringPattern(s) => line.contains(s),
+            AddressPattern::RegexPattern(re) => re.is_match(line),
             _ => false
         }
     }
