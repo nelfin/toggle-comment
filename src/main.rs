@@ -26,7 +26,7 @@
 use std::{fs, io};
 use std::io::Read;
 use regex::Regex;
-use clap::{Arg, App};
+use clap::{Arg, App, crate_version};
 
 // A simplified introduction to vi/ex/ed "address patterns":
 //
@@ -81,7 +81,7 @@ fn main() {
     // Guess language if not specified
     // Match lines and set/toggle comment status
     let args = App::new("toggle-comment")
-        .version("0.1")
+        .version(crate_version!())
         .arg(Arg::with_name("comment_prefix")
             .value_name("PREFIX")
             .short("c")
