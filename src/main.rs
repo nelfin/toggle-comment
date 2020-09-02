@@ -26,7 +26,7 @@
 use std::{fs, io};
 use std::io::Read;
 use regex::Regex;
-use clap::{Arg, App, crate_version};
+use clap::{Arg, App, crate_version, arg_enum, value_t};
 
 // A simplified introduction to vi/ex/ed "address patterns":
 //
@@ -75,6 +75,37 @@ fn build_predicate(pattern: AddressPattern) -> Predicate {
     Predicate { pattern }
 }
 
+arg_enum! {
+    enum CommentingMode {
+        Toggle,
+        Comment,
+        Uncomment,
+    }
+}
+
+fn comment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
+    if !prefix_pattern.is_match(line) {
+        format!("{}{}", prefix, line)
+    } else {
+        line.to_string()
+    }
+}
+
+fn toggle_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
+    // TODO: have a smart "block-based" commenting status instead of per-line
+    // Is it possible to define this in such a way that it's properly it's own inverse?
+    // c.f. "  # leading-whitespace" -> "  leading-whitespace" -> "#   leading-whitespace"
+    if prefix_pattern.is_match(line) {
+        prefix_pattern.replace(line, "$head$tail").to_string()
+    } else {
+        format!("{}{}", prefix, line)
+    }
+}
+
+fn uncomment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
+    prefix_pattern.replace(line, "$head$tail").to_string()
+}
+
 fn main() {
     // Check options, do we have a pattern? A filename? A target state?
     // Open streams
@@ -82,6 +113,15 @@ fn main() {
     // Match lines and set/toggle comment status
     let args = App::new("toggle-comment")
         .version(crate_version!())
+        .arg(Arg::with_name("comment_mode")
+            .long("mode")
+            .value_name("comment|toggle|uncomment")
+            .help("Commenting behaviour [default: toggle]")
+            .default_value("toggle")
+            .hide_default_value(true)
+            .possible_values(&["comment", "toggle", "uncomment"])
+            .case_insensitive(true)
+            .hide_possible_values(true))
         .arg(Arg::with_name("comment_prefix")
             .value_name("PREFIX")
             .short("c")
@@ -95,10 +135,11 @@ fn main() {
             .help("Sets the input file."))
         .get_matches();
 
+    let mode = value_t!(args.value_of("comment_mode"), CommentingMode).unwrap();
     let pattern_str = args.value_of("PATTERN").unwrap_or("");
     let pattern = try_parse_pattern(pattern_str).expect("Unable to parse pattern");
     let contents = if let Some(file_path) = args.value_of("INPUT") {
-        fs::read_to_string(file_path).expect("Unable to read file")
+        fs::read_to_string(file_path).expect("Unable to read file")  // TODO: edit this input file in place
     } else {
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
@@ -107,10 +148,16 @@ fn main() {
     let predicate = build_predicate(pattern);
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
 
+    let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
+    let operator = match mode {
+        CommentingMode::Comment => comment_line,
+        CommentingMode::Toggle => toggle_line,
+        CommentingMode::Uncomment => uncomment_line,
+    };
     for (idx, line) in contents.lines().enumerate() {
         let line_number = idx+1;
         if predicate.matches(line_number, line) {
-            println!("{}{}", prefix, line);
+            println!("{}", operator(&prefix_pattern, prefix, line));
         } else {
             println!("{}", line);
         }
