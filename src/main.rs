@@ -42,6 +42,17 @@ enum AddressPattern {
     Compound
 }
 
+impl AddressPattern {
+    fn matches(&self, line_number: usize, line: &str) -> bool {
+        match &self {
+            AddressPattern::Line(n) => *n == line_number,
+            AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
+            AddressPattern::RegexPattern(re) => re.is_match(line),
+            _ => todo!(),
+        }
+    }
+}
+
 fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
     if pattern_str.starts_with("/") {
         let x = pattern_str.trim_start_matches("/").trim_end_matches("/");
@@ -54,25 +65,6 @@ fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
         .map(|x| { x.parse().expect("Unable to parse number") })
         .collect();
     Ok(AddressPattern::LineRange(lines[0], lines[1]))
-}
-
-struct Predicate {
-    pattern: AddressPattern
-}
-
-impl Predicate {
-    fn matches(&self, line_number: usize, line: &str) -> bool {
-        match &self.pattern {
-            AddressPattern::Line(n) => *n == line_number,
-            AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
-            AddressPattern::RegexPattern(re) => re.is_match(line),
-            _ => false
-        }
-    }
-}
-
-fn build_predicate(pattern: AddressPattern) -> Predicate {
-    Predicate { pattern }
 }
 
 arg_enum! {
@@ -158,7 +150,6 @@ fn main() {
         io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
         buffer
     };
-    let predicate = build_predicate(pattern);
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
 
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
@@ -169,7 +160,7 @@ fn main() {
     };
     for (idx, line) in contents.lines().enumerate() {
         let line_number = idx+1;
-        if predicate.matches(line_number, line) {
+        if pattern.matches(line_number, line) {
             println!("{}", operator(&prefix_pattern, prefix, line));
         } else {
             println!("{}", line);
