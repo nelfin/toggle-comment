@@ -27,6 +27,7 @@ use std::{fs, io};
 use std::{path::Path, io::Read, ffi::{OsString, OsStr}};
 use regex::Regex;
 use clap::{Arg, App, crate_version, arg_enum, value_t};
+use std::str::Lines;
 
 // A simplified introduction to vi/ex/ed "address patterns":
 //
@@ -49,6 +50,14 @@ impl AddressPattern {
             AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
             AddressPattern::RegexPattern(re) => re.is_match(line),
             _ => todo!(),
+        }
+    }
+
+    fn matches_maybe<'a >(&self, line_number: usize, line: &'a str) -> Option<&'a str> {
+        if self.matches(line_number, line) {
+            Some(line)
+        } else {
+            None
         }
     }
 }
@@ -75,6 +84,10 @@ arg_enum! {
     }
 }
 
+fn force_comment_line(_prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
+    format!("{}{}", prefix, line)
+}
+
 fn comment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
     if !prefix_pattern.is_match(line) {
         format!("{}{}", prefix, line)
@@ -94,14 +107,78 @@ fn toggle_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
     }
 }
 
-fn uncomment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
+fn uncomment_line(prefix_pattern: &Regex, _prefix: &str, line: &str) -> String {
     prefix_pattern.replace(line, "$head$tail").to_string()
+}
+
+fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: CommentingMode) -> Vec<String> {
+    let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
+    let operator = match mode {
+        CommentingMode::Comment => comment_line,
+        // CommentingMode::Toggle if pattern_is_range => toggle_block,
+        CommentingMode::Toggle => toggle_line,
+        CommentingMode::Uncomment => uncomment_line,
+    };
+
+    let mut output = vec![];
+    for (idx, line) in lines.enumerate() {
+        let line_number = idx + 1;
+        if pattern.matches(line_number, line) {
+            output.push(format!("{}", operator(&prefix_pattern, prefix, line)));
+        } else {
+            output.push(format!("{}", line));
+        }
+    }
+    return output;
+}
+
+// fn toggle_block_(prefix_pattern: &Regex, prefix: &str, lines: Lines) -> impl Iterator {
+//     // check to see that if the first non-whitespace line is commented
+//     "TODO".to_string()
+// }
+fn toggle_block(prefix_pattern: Regex, prefix: &str, lines: Vec<&str>) -> Vec<String> {
+    let mut operator: fn(&Regex, &str, &str) -> String = force_comment_line;
+    let mut found_nonblank = false;
+    let mut output = vec![];
+    let blank = Regex::new(r"^\s*$").unwrap();
+    // find first non-whitespace line
+    for (idx, line) in lines.iter().enumerate() {
+        let line_number = idx + 1;  // FIXME: address patterns and stuff
+        println!("{}: {}", line_number, line);
+        if blank.is_match(line) {
+            println!("blank matched");
+            output.push(line.to_string());
+            continue;
+        } else if !found_nonblank {
+            println!("in first found_nonblank branch");
+            found_nonblank = true;
+            if !prefix_pattern.is_match(line) {
+                // Line does not match comment pattern, so we should comment out the whole block
+                println!("choosing comment_line");
+                operator = force_comment_line;
+            } else {
+                // Vice versa, first nonblank line is a comment, so uncomment the whole block
+                println!("choosing uncomment_line");
+                operator = uncomment_line;
+            }
+        }
+        println!("printing line");
+        output.push(operator(&prefix_pattern, prefix, line));
+    }
+    return output;
 }
 
 fn get_bin_name() -> OsString {
     let args: Vec<OsString> = std::env::args_os().collect();
     let p = Path::new(OsStr::new(&args[0]));
     p.file_name().unwrap_or(OsStr::new("<UNSET>")).into()
+}
+
+fn get_matches<'a>(pattern: &AddressPattern, lines: Vec<&'a str>) -> Vec<&'a str> {
+    lines.iter().enumerate()
+        //.filter_map(|(idx, l)| pattern.matches(idx+1, l))
+        .filter_map(|(idx, l)| pattern.matches_maybe(idx+1, l))
+        .collect()
 }
 
 fn main() {
@@ -143,6 +220,11 @@ fn main() {
     let mode = value_t!(args.value_of("comment_mode"), CommentingMode).unwrap();
     let pattern_str = args.value_of("PATTERN").unwrap_or("");
     let pattern = try_parse_pattern(pattern_str).expect("Unable to parse pattern");
+    let pattern_is_range = match pattern {
+        AddressPattern::LineRange(_, _) | AddressPattern::LineRelativeRange { .. } => true,
+        AddressPattern::Line(_) | AddressPattern::RegexPattern(_) | AddressPattern::Compound => false,
+    };
+
     let contents = if let Some(file_path) = args.value_of("INPUT") {
         fs::read_to_string(file_path).expect("Unable to read file")  // TODO: edit this input file in place
     } else {
@@ -153,18 +235,34 @@ fn main() {
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
 
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-    let operator = match mode {
-        CommentingMode::Comment => comment_line,
-        CommentingMode::Toggle => toggle_line,
-        CommentingMode::Uncomment => uncomment_line,
-    };
-    for (idx, line) in contents.lines().enumerate() {
-        let line_number = idx+1;
-        if pattern.matches(line_number, line) {
-            println!("{}", operator(&prefix_pattern, prefix, line));
-        } else {
-            println!("{}", line);
-        }
+    // let operator = match mode {
+    //     CommentingMode::Comment => comment_line,
+    //     CommentingMode::Toggle if pattern_is_range => toggle_block,
+    //     CommentingMode::Toggle => toggle_line,
+    //     CommentingMode::Uncomment => uncomment_line,
+    // };
+    if pattern_is_range {
+        // FIXME: pattern is range does not imply toggle comment
+        //toggle_block(contents.lines(), pattern, prefix_pattern, prefix);
+        let example = vec![
+            "a = 1",
+            "b = 2",
+            "#c = 3",
+            "d = 4",
+        ];
+        let pattern = AddressPattern::RegexPattern(Regex::new(".").unwrap());
+        let prefix = "# ";
+        let prefix_pattern= Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
+        
+        let expected = vec![
+            "# a = 1",
+            "# b = 2",
+            "# #c = 3",
+            "# d = 4",
+        ];
+        let actual = toggle_block(prefix_pattern, prefix, example);
+    } else {
+        comment_lines(contents.lines(), pattern, prefix, mode);
     }
 }
 
