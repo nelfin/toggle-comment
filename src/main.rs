@@ -24,7 +24,7 @@
 // }
 
 use std::{fs, io};
-use std::io::Read;
+use std::{path::Path, io::Read, ffi::{OsString, OsStr}};
 use regex::Regex;
 use clap::{Arg, App, crate_version, arg_enum, value_t};
 
@@ -106,18 +106,31 @@ fn uncomment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
     prefix_pattern.replace(line, "$head$tail").to_string()
 }
 
+fn get_bin_name() -> OsString {
+    let args: Vec<OsString> = std::env::args_os().collect();
+    let p = Path::new(OsStr::new(&args[0]));
+    p.file_name().unwrap_or(OsStr::new("<UNSET>")).into()
+}
+
 fn main() {
     // Check options, do we have a pattern? A filename? A target state?
     // Open streams
     // Guess language if not specified
     // Match lines and set/toggle comment status
+    let default_mode = match get_bin_name().to_str() {
+        Some("comment") => "comment",
+        Some("uncomment") => "uncomment",
+        _ => "toggle",
+    };
+
     let args = App::new("toggle-comment")
         .version(crate_version!())
+        .about("A utility for setting or toggling the line-comment status of lines in text files")
         .arg(Arg::with_name("comment_mode")
             .long("mode")
             .value_name("comment|toggle|uncomment")
-            .help("Commenting behaviour [default: toggle]")
-            .default_value("toggle")
+            .help(&format!("Commenting behaviour [default: {}]", default_mode))
+            .default_value(default_mode)
             .hide_default_value(true)
             .possible_values(&["comment", "toggle", "uncomment"])
             .case_insensitive(true)
