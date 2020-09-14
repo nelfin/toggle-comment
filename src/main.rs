@@ -136,13 +136,14 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
 //     // check to see that if the first non-whitespace line is commented
 //     "TODO".to_string()
 // }
-fn toggle_block(prefix_pattern: Regex, prefix: &str, lines: Vec<&str>) -> Vec<String> {
+fn toggle_block<S: AsRef<str>>(prefix_pattern: Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
     let mut operator: fn(&Regex, &str, &str) -> String = force_comment_line;
     let mut found_nonblank = false;
     let mut output = vec![];
     let blank = Regex::new(r"^\s*$").unwrap();
     // find first non-whitespace line
     for (idx, line) in lines.iter().enumerate() {
+        let line = line.as_ref();
         let line_number = idx + 1;  // FIXME: address patterns and stuff
         println!("{}: {}", line_number, line);
         if blank.is_match(line) {
@@ -260,7 +261,7 @@ fn main() {
             "# #c = 3",
             "# d = 4",
         ];
-        let actual = toggle_block(prefix_pattern, prefix, example);
+        let actual = toggle_block(prefix_pattern, prefix, &example);
     } else {
         comment_lines(contents.lines(), pattern, prefix, mode);
     }

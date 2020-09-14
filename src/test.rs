@@ -37,7 +37,7 @@ fn toggle_initial_uncomment() {
         "# #c = 3",
         "# d = 4",
     ];
-    let actual = toggle_block(prefix_pattern, prefix, example);
+    let actual = toggle_block(prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -59,7 +59,7 @@ fn toggle_initial_comment() {
         "c = 3",
         "d = 4",
     ];
-    let actual = toggle_block(prefix_pattern, prefix, example);
+    let actual = toggle_block(prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -81,7 +81,7 @@ fn toggle_comment_initial_blank() {
         "#         # NOTE: choose better names",
         "#         return bar",
     ];
-    let actual = toggle_block(prefix_pattern, prefix, example);
+    let actual = toggle_block(prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -105,7 +105,7 @@ fn toggle_comment_unintended_maybe() {
         "    lol",
         "    pass",
     ];
-    let actual = toggle_block(prefix_pattern, prefix, example);
+    let actual = toggle_block(prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
