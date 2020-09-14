@@ -132,38 +132,36 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
     return output;
 }
 
-// fn toggle_block_(prefix_pattern: &Regex, prefix: &str, lines: Lines) -> impl Iterator {
-//     // check to see that if the first non-whitespace line is commented
-//     "TODO".to_string()
-// }
-fn toggle_block<S: AsRef<str>>(prefix_pattern: Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
-    let mut operator: fn(&Regex, &str, &str) -> String = force_comment_line;
-    let mut found_nonblank = false;
-    let mut output = vec![];
+fn will_comment<S: AsRef<str>>(prefix_pattern: &Regex, lines: &Vec<S>) -> bool {
     let blank = Regex::new(r"^\s*$").unwrap();
-    // find first non-whitespace line
-    for (idx, line) in lines.iter().enumerate() {
+    // Walk once to determine if all-nonblank lines are commented or not
+    for line in lines.iter() {
         let line = line.as_ref();
-        let line_number = idx + 1;  // FIXME: address patterns and stuff
-        println!("{}: {}", line_number, line);
         if blank.is_match(line) {
-            println!("blank matched");
+            continue;
+        } else if !prefix_pattern.is_match(line) {
+            // Line does not match comment pattern, so we should comment out the whole block
+            return true;
+        }
+    }
+    return false;
+}
+
+fn toggle_block<S: AsRef<str>>(prefix_pattern: &Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
+    let blank = Regex::new(r"^\s*$").unwrap();
+    let operator: fn(&Regex, &str, &str) -> String = if will_comment(prefix_pattern, lines) {
+        force_comment_line
+    } else {
+        uncomment_line
+    };
+    let mut output = vec![];
+
+    for line in lines.iter() {
+        let line = line.as_ref();
+        if blank.is_match(line) {
             output.push(line.to_string());
             continue;
-        } else if !found_nonblank {
-            println!("in first found_nonblank branch");
-            found_nonblank = true;
-            if !prefix_pattern.is_match(line) {
-                // Line does not match comment pattern, so we should comment out the whole block
-                println!("choosing comment_line");
-                operator = force_comment_line;
-            } else {
-                // Vice versa, first nonblank line is a comment, so uncomment the whole block
-                println!("choosing uncomment_line");
-                operator = uncomment_line;
-            }
         }
-        println!("printing line");
         output.push(operator(&prefix_pattern, prefix, line));
     }
     return output;
@@ -261,7 +259,7 @@ fn main() {
             "# #c = 3",
             "# d = 4",
         ];
-        let actual = toggle_block(prefix_pattern, prefix, &example);
+        let actual = toggle_block(&prefix_pattern, prefix, &example);
     } else {
         comment_lines(contents.lines(), pattern, prefix, mode);
     }
