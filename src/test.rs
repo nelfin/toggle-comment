@@ -31,7 +31,7 @@ fn toggle_initial_uncomment() {
 
     let prefix = "# ";
     let prefix_pattern = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-    
+
     let expected = vec![
         "# a = 1",
         "# b = 2",
@@ -53,7 +53,7 @@ fn toggle_initial_comment() {
 
     let prefix = "# ";
     let prefix_pattern= Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-    
+
     let expected = vec![
         "# # a = 1",
         "# b = 2",
@@ -95,7 +95,7 @@ fn line_address_only_matches_one() {
         "three",
     ];
 
-    assert_eq!(get_matches(&pattern, lines), vec!["two"]);
+    assert_eq!(get_matches(&pattern, &lines), vec!["two"]);
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn line_range_address_matches_block() {
         "four"
     ];
 
-    assert_eq!(get_matches(&pattern, lines), vec!["two", "three", "four"]);
+    assert_eq!(get_matches(&pattern, &lines), vec!["two", "three", "four"]);
 }
 
 lazy_static! {

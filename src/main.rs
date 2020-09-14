@@ -173,7 +173,7 @@ fn get_bin_name() -> OsString {
     p.file_name().unwrap_or(OsStr::new("<UNSET>")).into()
 }
 
-fn get_matches<'a>(pattern: &AddressPattern, lines: Vec<&'a str>) -> Vec<&'a str> {
+fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>) -> Vec<&'a str> {
     lines.iter().enumerate()
         //.filter_map(|(idx, l)| pattern.matches(idx+1, l))
         .filter_map(|(idx, l)| pattern.matches_maybe(idx+1, l))
@@ -232,36 +232,18 @@ fn main() {
         buffer
     };
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
-
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-    // let operator = match mode {
-    //     CommentingMode::Comment => comment_line,
-    //     CommentingMode::Toggle if pattern_is_range => toggle_block,
-    //     CommentingMode::Toggle => toggle_line,
-    //     CommentingMode::Uncomment => uncomment_line,
-    // };
-    if pattern_is_range {
-        // FIXME: pattern is range does not imply toggle comment
-        //toggle_block(contents.lines(), pattern, prefix_pattern, prefix);
-        let example = vec![
-            "a = 1",
-            "b = 2",
-            "#c = 3",
-            "d = 4",
-        ];
-        let pattern = AddressPattern::RegexPattern(Regex::new(".").unwrap());
-        let prefix = "# ";
-        let prefix_pattern= Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-        
-        let expected = vec![
-            "# a = 1",
-            "# b = 2",
-            "# #c = 3",
-            "# d = 4",
-        ];
-        let actual = toggle_block(&prefix_pattern, prefix, &example);
+    let toggling = match mode { CommentingMode::Toggle => true, _ => false };
+
+    if toggling && pattern_is_range {
+        // TODO: don't collect all these lines
+        let matches = get_matches(&pattern, &contents.lines().collect());
+        let actual = toggle_block(&prefix_pattern, prefix, &matches);
+        println!("toggle_block={:?}", actual);
     } else {
-        comment_lines(contents.lines(), pattern, prefix, mode);
+        // NOTE: on force-comment or force-uncomment, the per-line behaviour and
+        // block behaviour is the same, hence we do not branch on pattern_is_range
+        println!("comment_lines={:?}", comment_lines(contents.lines(), pattern, prefix, mode));
     }
 }
 
