@@ -47,7 +47,7 @@ impl AddressPattern {
     fn matches(&self, line_number: usize, line: &str) -> bool {
         match &self {
             AddressPattern::Line(n) => *n == line_number,
-            AddressPattern::LineRange(start, end) => (*start..*end).contains(&line_number),
+            AddressPattern::LineRange(start, end) => (*start..(*end+1)).contains(&line_number),
             AddressPattern::RegexPattern(re) => re.is_match(line),
             _ => todo!(),
         }
