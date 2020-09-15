@@ -1,6 +1,6 @@
 [package]
 name = "toggle-comment"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Andrew Haigh <hello@nelf.in>"]
 edition = "2018"
 description = "A utility for setting or toggling the line-comment status of lines in plain text files in a do-what-i-mean fashion"
