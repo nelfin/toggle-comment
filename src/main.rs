@@ -52,14 +52,6 @@ impl AddressPattern {
             _ => todo!(),
         }
     }
-
-    fn matches_maybe<'a >(&self, line_number: usize, line: &'a str) -> Option<&'a str> {
-        if self.matches(line_number, line) {
-            Some(line)
-        } else {
-            None
-        }
-    }
 }
 
 fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
@@ -97,9 +89,6 @@ fn comment_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
 }
 
 fn toggle_line(prefix_pattern: &Regex, prefix: &str, line: &str) -> String {
-    // TODO: have a smart "block-based" commenting status instead of per-line
-    // Is it possible to define this in such a way that it's properly it's own inverse?
-    // c.f. "  # leading-whitespace" -> "  leading-whitespace" -> "#   leading-whitespace"
     if prefix_pattern.is_match(line) {
         prefix_pattern.replace(line, "$head$tail").to_string()
     } else {
@@ -130,6 +119,26 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
         }
     }
     return output;
+}
+
+fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>) -> Vec<(bool, Vec<&'a str>)> {
+    let mut i = lines.iter().enumerate()
+        .map(|(idx, &l)| (pattern.matches(idx+1, l), l))
+        .peekable();
+
+    let mut retval = vec![];
+    while let Some((last, l)) = i.next() {
+        let mut v: Vec<&str> = vec![l];
+        while let Some(&(matched, l)) = i.peek() {
+            if matched != last {
+                break;
+            }
+            v.push(l);
+            i.next();
+        }
+        retval.push((last, v));
+    }
+    retval
 }
 
 fn will_comment<S: AsRef<str>>(prefix_pattern: &Regex, lines: &Vec<S>) -> bool {
@@ -173,11 +182,12 @@ fn get_bin_name() -> OsString {
     p.file_name().unwrap_or(OsStr::new("<UNSET>")).into()
 }
 
-fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>) -> Vec<&'a str> {
-    lines.iter().enumerate()
-        //.filter_map(|(idx, l)| pattern.matches(idx+1, l))
-        .filter_map(|(idx, l)| pattern.matches_maybe(idx+1, l))
-        .collect()
+macro_rules! printlines {
+    ($lines:expr) => {
+        for line in $lines {
+            println!("{}", line);
+        }
+    };
 }
 
 fn main() {
@@ -237,13 +247,17 @@ fn main() {
 
     if toggling && pattern_is_range {
         // TODO: don't collect all these lines
-        let matches = get_matches(&pattern, &contents.lines().collect());
-        let actual = toggle_block(&prefix_pattern, prefix, &matches);
-        println!("toggle_block={:?}", actual);
+        for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect()) {
+            if is_match {
+                printlines!(toggle_block(&prefix_pattern, prefix, &chunk));
+            } else {
+                printlines!(chunk);
+            }
+        }
     } else {
         // NOTE: on force-comment or force-uncomment, the per-line behaviour and
         // block behaviour is the same, hence we do not branch on pattern_is_range
-        println!("comment_lines={:?}", comment_lines(contents.lines(), pattern, prefix, mode));
+        printlines!(comment_lines(contents.lines(), pattern, prefix, mode));
     }
 }
 

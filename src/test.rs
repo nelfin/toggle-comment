@@ -95,7 +95,9 @@ fn line_address_only_matches_one() {
         "three",
     ];
 
-    assert_eq!(get_matches(&pattern, &lines), vec!["two"]);
+    let matches = get_matches(&pattern, &lines);
+    assert_eq!(matches.len(), 3);
+    assert_eq!(matches[1], (true, vec!["two"]));
 }
 
 #[test]
@@ -108,7 +110,9 @@ fn line_range_address_matches_block() {
         "four"
     ];
 
-    assert_eq!(get_matches(&pattern, &lines), vec!["two", "three", "four"]);
+    let matches = get_matches(&pattern, &lines);
+    assert_eq!(matches.len(), 2);
+    assert_eq!(matches[1], (true, vec!["two", "three", "four"]));
 }
 
 lazy_static! {
