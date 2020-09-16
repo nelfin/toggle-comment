@@ -29,43 +29,104 @@ use regex::Regex;
 use clap::{Arg, App, crate_version, arg_enum, value_t};
 use std::str::Lines;
 
+// --------------------------------
 // A simplified introduction to vi/ex/ed "address patterns":
 //
 // N                1-indexed line number
 // M,N              a range of lines, 1-indexed inclusive of end
 // M,+N             a range specified by a start and a count
 // /pattern/        a regular expression
-enum AddressPattern {
-    Line(usize),
-    LineRange(usize, usize),
-    LineRelativeRange { start: usize, count: usize },
-    RegexPattern(Regex),
-    Compound
+
+enum AddressComponent {
+    Line(usize),            // N
+    RegexPattern(Regex),    // /pattern/
+    Relative(usize),        // +N
+    Step(usize),            // ~N
 }
 
-impl AddressPattern {
+impl AddressComponent {
     fn matches(&self, line_number: usize, line: &str) -> bool {
         match &self {
-            AddressPattern::Line(n) => *n == line_number,
-            AddressPattern::LineRange(start, end) => (*start..(*end+1)).contains(&line_number),
-            AddressPattern::RegexPattern(re) => re.is_match(line),
+            AddressComponent::Line(n) => *n == line_number,
+            AddressComponent::RegexPattern(re) => re.is_match(line),
             _ => todo!(),
         }
     }
 }
 
+enum Address {
+    ZeroAddress,
+    OneAddress(AddressComponent),
+    AddressRange(AddressComponent, AddressComponent),
+}
+
+struct AddressPattern {
+    pattern: Address,
+    negated: bool,
+}
+
+use {Address::*, AddressComponent::*};
+impl AddressPattern {
+    fn new_single(addr: AddressComponent) -> AddressPattern {
+        AddressPattern { pattern: OneAddress(addr), negated: false }
+    }
+
+    fn new_range(start: AddressComponent, end: AddressComponent) -> AddressPattern {
+        AddressPattern { pattern: AddressRange(start, end), negated: false }
+    }
+
+    fn invert(self) -> AddressPattern {
+        AddressPattern { pattern: self.pattern, negated: !self.negated }
+    }
+
+    fn is_range(&self) -> bool {
+        match &self.pattern {
+            AddressRange(_, _) => true,
+            _ => false,
+        }
+    }
+
+    fn matches(&self, line_number: usize, line: &str) -> bool {
+        let is_match = match &self.pattern {
+            Address::ZeroAddress => true,
+            Address::OneAddress(AddressComponent::Relative(_)) => panic!("invalid usage of +N or ~N as first address"),
+            Address::OneAddress(AddressComponent::Step(_)) => panic!("invalid usage of +N or ~N as first address"),
+            Address::OneAddress(addr) => addr.matches(line_number, line),
+            Address::AddressRange(_, _) => self.match_range(line_number),
+        };
+        if self.negated { !is_match } else { is_match }
+    }
+
+    fn match_range(&self, line_number: usize) -> bool {
+        assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
+        match &self.pattern {
+            AddressRange(Line(s), Line(e)) => (*s..*e+1).contains(&line_number),
+            AddressRange(Line(s), RegexPattern(e)) => todo!(),
+            AddressRange(Line(s), Relative(count)) => (*s..*s+*count+1).contains(&line_number),
+            AddressRange(Line(s), Step(count)) => todo!(),
+            AddressRange(RegexPattern(s), Line(e)) => todo!(),
+            AddressRange(RegexPattern(s), RegexPattern(e)) => todo!(),
+            AddressRange(RegexPattern(s), Relative(count)) => todo!(),
+            AddressRange(RegexPattern(s), Step(count)) => todo!(),
+            _ => unreachable!("Shouldn't have branched into match_range"),
+        }
+    }
+}
+
+// --------------------------------
+
 fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
     if pattern_str.starts_with("/") {
         let x = pattern_str.trim_start_matches("/").trim_end_matches("/");
-        return Ok(AddressPattern::RegexPattern(Regex::new(x).unwrap()));
+        return Ok(AddressPattern::new_single(RegexPattern(Regex::new(x).unwrap())));
     }
     if let Ok(x) = pattern_str.parse() {
-        return Ok(AddressPattern::Line(x));
+        return Ok(AddressPattern::new_single(Line(x)));
     }
     let lines: Vec<usize> = pattern_str.split(",")
         .map(|x| { x.parse().expect("Unable to parse number") })
         .collect();
-    Ok(AddressPattern::LineRange(lines[0], lines[1]))
+    Ok(AddressPattern::new_range(Line(lines[0]), Line(lines[1])))
 }
 
 arg_enum! {
@@ -229,11 +290,6 @@ fn main() {
     let mode = value_t!(args.value_of("comment_mode"), CommentingMode).unwrap();
     let pattern_str = args.value_of("PATTERN").unwrap_or("");
     let pattern = try_parse_pattern(pattern_str).expect("Unable to parse pattern");
-    let pattern_is_range = match pattern {
-        AddressPattern::LineRange(_, _) | AddressPattern::LineRelativeRange { .. } => true,
-        AddressPattern::Line(_) | AddressPattern::RegexPattern(_) | AddressPattern::Compound => false,
-    };
-
     let contents = if let Some(file_path) = args.value_of("INPUT") {
         fs::read_to_string(file_path).expect("Unable to read file")  // TODO: edit this input file in place
     } else {
@@ -245,7 +301,7 @@ fn main() {
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
     let toggling = match mode { CommentingMode::Toggle => true, _ => false };
 
-    if toggling && pattern_is_range {
+    if toggling && pattern.is_range() {
         // TODO: don't collect all these lines
         for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect()) {
             if is_match {
