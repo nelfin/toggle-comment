@@ -139,8 +139,12 @@ impl AddressPattern {
                 (s.is_match(line) || (state.left_match.is_some() && state.right_match.is_none()), new_state)
             },
             AddressRange(RegexPattern(s), Relative(count)) => {
-                let new_state = if s.is_match(line) { state.match_left(line_number) } else { state.unchanged() };
-                (s.is_match(line) || state.left_match.map_or(false, |last| line_number <= last + count), new_state)
+                match state.left_match {
+                    None if s.is_match(line) => (true, MatchState { left_match: Some(line_number), right_match: None }),
+                    None => (false, state.unchanged()),
+                    Some(last) if line_number > last + count => (false, MatchState { left_match: None, right_match: None }),  // reset
+                    Some(_) => (true, state.unchanged()),
+                }
             },
             AddressRange(RegexPattern(s), Step(count)) => todo!(),
             _ => unreachable!("Shouldn't have branched into match_range"),

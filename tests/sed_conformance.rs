@@ -50,6 +50,7 @@ pattern_test_force_comment!(simple_regex, "/you/");
 pattern_test_force_comment!(relative_range, "5,+2");
 pattern_test_force_comment!(regex_range, "/nobody/,/somebody/");
 pattern_test_force_comment!(regex_relative_range, "/banish/,+3");
+pattern_test_force_comment!(double_regex_relative_range, "/re/,+2");
 pattern_test_force_comment!(regex_absolute_range, "/public/,1");  // only matches line with regex
 pattern_test_force_comment!(regex_relative_from_first_match, "/The/,+4");  // should only match 5 lines, second "The" doesn't reset counter
 pattern_test_force_comment!(nonmatched_first_address, "1,/nobody/");
