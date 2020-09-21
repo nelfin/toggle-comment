@@ -65,10 +65,18 @@ struct AddressPattern {
     negated: bool,
 }
 
+#[derive(Debug)]
 struct MatchState {
-    last_match: Option<usize>,
+    left_match: Option<usize>,
+    right_match: Option<usize>,
 }
-static EMPTY_STATE: MatchState = MatchState { last_match: None };
+static EMPTY_STATE: MatchState = MatchState { left_match: None, right_match: None };
+
+impl MatchState {
+    fn unchanged(&self) -> Self { MatchState { left_match: self.left_match, right_match: self.right_match } }
+    fn match_left(&self, idx: usize) -> Self { MatchState { left_match: Some(idx), right_match: self.right_match } }
+    fn match_right(&self, idx: usize) -> Self { MatchState { left_match: self.left_match, right_match: Some(idx) } }
+}
 
 use {Address::*, AddressComponent::*};
 impl AddressPattern {
@@ -109,18 +117,54 @@ impl AddressPattern {
             AddressRange(Line(s), RegexPattern(e)) => {
                 // TODO: update state with regex match
                 (line_number >= *s) &&
-                    state.last_match.is_none()
+                    state.right_match.is_none()
             },
             AddressRange(Line(s), Relative(count)) => (*s..*s+*count+1).contains(&line_number),
             AddressRange(Line(s), Step(count)) => todo!(),
             AddressRange(RegexPattern(s), Line(e)) => {
                 s.is_match(line) ||
-                    state.last_match.map_or(false, |_last| line_number <= *e)
+                    state.left_match.map_or(false, |_last| line_number <= *e)
             },
-            AddressRange(RegexPattern(s), RegexPattern(e)) => todo!(),
+            AddressRange(RegexPattern(s), RegexPattern(e)) => {
+                s.is_match(line) ||
+                    (state.left_match.is_some() && state.right_match.is_none())
+            },
             AddressRange(RegexPattern(s), Relative(count)) => {
                 s.is_match(line) ||
-                    state.last_match.map_or(false, |last| line_number <= last + count)
+                    state.left_match.map_or(false, |last| line_number <= last + count)
+            },
+            AddressRange(RegexPattern(s), Step(count)) => todo!(),
+            _ => unreachable!("Shouldn't have branched into match_range"),
+        }
+    }
+
+    fn match_range2(&self, line_number: usize, line: &str, state: &MatchState) -> (bool, MatchState) {
+        assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
+        match &self.pattern {
+            AddressRange(Line(s), Line(e)) => {
+                ((*s..*e+1).contains(&line_number), state.unchanged())
+            },
+            AddressRange(Line(s), RegexPattern(e)) => {
+                let new_state = if e.is_match(line) { state.match_right(line_number) } else { state.unchanged() };
+                ((line_number >= *s) && state.right_match.is_none(), new_state)
+            },
+            AddressRange(Line(s), Relative(count)) => {
+                ((*s..*s+*count+1).contains(&line_number), state.unchanged())
+            },
+            AddressRange(Line(s), Step(count)) => todo!(),
+            AddressRange(RegexPattern(s), Line(e)) => {
+                let new_state = if s.is_match("line") { state.match_left(line_number) } else { state.unchanged() };
+                (s.is_match(line) || state.left_match.map_or(false, |_last| line_number <= *e), new_state)
+            },
+            AddressRange(RegexPattern(s), RegexPattern(e)) => {
+                let new_state = if e.is_match(line) { state.match_right(line_number) } else { state.unchanged() };
+                // Reset end-regex match state when start-regex matches
+                let new_state = if s.is_match(line) { MatchState { left_match: Some(line_number), right_match: None } } else { new_state.unchanged() };
+                (s.is_match(line) || (state.left_match.is_some() && state.right_match.is_none()), new_state)
+            },
+            AddressRange(RegexPattern(s), Relative(count)) => {
+                let new_state = if s.is_match(line) { state.match_left(line_number) } else { state.unchanged() };
+                (s.is_match(line) || state.left_match.map_or(false, |last| line_number <= last + count), new_state)
             },
             AddressRange(RegexPattern(s), Step(count)) => todo!(),
             _ => unreachable!("Shouldn't have branched into match_range"),
