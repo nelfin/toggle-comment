@@ -76,6 +76,10 @@ impl MatchState {
     fn unchanged(&self) -> Self { MatchState { left_match: self.left_match, right_match: self.right_match } }
     fn match_left(&self, idx: usize) -> Self { MatchState { left_match: Some(idx), right_match: self.right_match } }
     fn match_right(&self, idx: usize) -> Self { MatchState { left_match: self.left_match, right_match: Some(idx) } }
+    fn update(&mut self, other: MatchState) {
+        self.left_match = other.left_match;
+        self.right_match = other.right_match;
+    }
 }
 
 use {Address::*, AddressComponent::*};
@@ -99,46 +103,18 @@ impl AddressPattern {
         }
     }
 
-    fn matches(&self, line_number: usize, line: &str, state: &MatchState) -> bool {
-        let is_match = match &self.pattern {
-            Address::ZeroAddress => true,
+    fn matches(&self, line_number: usize, line: &str, state: &MatchState) -> (bool, MatchState) {
+        let (is_match, new_state) = match &self.pattern {
+            Address::ZeroAddress => (true, state.unchanged()),
             Address::OneAddress(AddressComponent::Relative(_)) => panic!("invalid usage of +N or ~N as first address"),
             Address::OneAddress(AddressComponent::Step(_)) => panic!("invalid usage of +N or ~N as first address"),
-            Address::OneAddress(addr) => addr.matches(line_number, line),
+            Address::OneAddress(addr) => (addr.matches(line_number, line), state.unchanged()),
             Address::AddressRange(_, _) => self.match_range(line_number, line, state),
         };
-        if self.negated { !is_match } else { is_match }
+        if self.negated { (!is_match, new_state) } else { (is_match, new_state) }
     }
 
-    fn match_range(&self, line_number: usize, line: &str, state: &MatchState) -> bool {
-        assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
-        match &self.pattern {
-            AddressRange(Line(s), Line(e)) => (*s..*e+1).contains(&line_number),
-            AddressRange(Line(s), RegexPattern(e)) => {
-                // TODO: update state with regex match
-                (line_number >= *s) &&
-                    state.right_match.is_none()
-            },
-            AddressRange(Line(s), Relative(count)) => (*s..*s+*count+1).contains(&line_number),
-            AddressRange(Line(s), Step(count)) => todo!(),
-            AddressRange(RegexPattern(s), Line(e)) => {
-                s.is_match(line) ||
-                    state.left_match.map_or(false, |_last| line_number <= *e)
-            },
-            AddressRange(RegexPattern(s), RegexPattern(e)) => {
-                s.is_match(line) ||
-                    (state.left_match.is_some() && state.right_match.is_none())
-            },
-            AddressRange(RegexPattern(s), Relative(count)) => {
-                s.is_match(line) ||
-                    state.left_match.map_or(false, |last| line_number <= last + count)
-            },
-            AddressRange(RegexPattern(s), Step(count)) => todo!(),
-            _ => unreachable!("Shouldn't have branched into match_range"),
-        }
-    }
-
-    fn match_range2(&self, line_number: usize, line: &str, state: &MatchState) -> (bool, MatchState) {
+    fn match_range(&self, line_number: usize, line: &str, state: &MatchState) -> (bool, MatchState) {
         assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
         match &self.pattern {
             AddressRange(Line(s), Line(e)) => {
@@ -232,7 +208,8 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
     let mut output = vec![];
     for (idx, line) in lines.enumerate() {
         let line_number = idx + 1;
-        if pattern.matches(line_number, line, &EMPTY_STATE) {
+        // XXX: shouldn't be tracking MatchState since we are not in block-commenting?
+        if pattern.matches(line_number, line, &EMPTY_STATE).0 {
             output.push(format!("{}", operator(&prefix_pattern, prefix, line)));
         } else {
             output.push(format!("{}", line));
@@ -241,9 +218,13 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
     return output;
 }
 
-fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>) -> Vec<(bool, Vec<&'a str>)> {
+fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>, initial_state: MatchState) -> Vec<(bool, Vec<&'a str>)> {
     let mut i = lines.iter().enumerate()
-        .map(|(idx, &l)| (pattern.matches(idx+1, l, &EMPTY_STATE), l))
+        .scan(initial_state, |state, (idx, &l)| {
+            let (is_match, new_state) = pattern.matches(idx+1, l, &state);
+            state.update(new_state);
+            Some((is_match, l))
+        })
         .peekable();
 
     let mut retval = vec![];
@@ -359,10 +340,11 @@ fn main() {
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
     let toggling = match mode { CommentingMode::Toggle => true, _ => false };
+    let initial_state = EMPTY_STATE.unchanged();
 
     if toggling && pattern.is_range() {
         // TODO: don't collect all these lines
-        for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect()) {
+        for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect(), initial_state) {
             if is_match {
                 printlines!(toggle_block(&prefix_pattern, prefix, &chunk));
             } else {

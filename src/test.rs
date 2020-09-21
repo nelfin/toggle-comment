@@ -95,7 +95,7 @@ fn line_address_only_matches_one() {
         "three",
     ];
 
-    let matches = get_matches(&pattern, &lines);
+    let matches = get_matches(&pattern, &lines, EMPTY_STATE.unchanged());
     assert_eq!(matches.len(), 3);
     assert_eq!(matches[1], (true, vec!["two"]));
 }
@@ -110,7 +110,24 @@ fn line_range_address_matches_block() {
         "four"
     ];
 
-    let matches = get_matches(&pattern, &lines);
+    let matches = get_matches(&pattern, &lines, EMPTY_STATE.unchanged());
+    assert_eq!(matches.len(), 2);
+    assert_eq!(matches[1], (true, vec!["two", "three", "four"]));
+}
+
+
+#[test]
+fn regex_range_address_matches_block() {
+    let re = Regex::new("two").unwrap();
+    let pattern = AddressPattern::new_range(RegexPattern(re), Line(4));
+    let lines = vec![
+        "one",
+        "two",
+        "three",
+        "four"
+    ];
+
+    let matches = get_matches(&pattern, &lines, EMPTY_STATE.unchanged());
     assert_eq!(matches.len(), 2);
     assert_eq!(matches[1], (true, vec!["two", "three", "four"]));
 }
@@ -190,8 +207,8 @@ macro_rules! address_range {
     ($range:expr, $negated:expr) => { AddressPattern { pattern: $range, negated: $negated }; };
 }
 
-macro_rules! assert_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!($addr.matches($l, "", &EMPTY_STATE)); )* }; }
-macro_rules! assert_not_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!(!$addr.matches($l, "", &EMPTY_STATE)); )* }; }
+macro_rules! assert_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!($addr.matches($l, "", &EMPTY_STATE).0); )* }; }
+macro_rules! assert_not_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!(!$addr.matches($l, "", &EMPTY_STATE).0); )* }; }
 
 #[test]
 fn zero_address_always_matches() {
@@ -253,12 +270,12 @@ fn matches_regex_relative_range() {
     let re = Regex::new("foo").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re), Relative(3)));
 
-    assert!( addr.matches(1, "foo", &EMPTY_STATE));
+    assert!( addr.matches(1, "foo", &EMPTY_STATE).0);
     let state = MatchState { left_match: Some(1), right_match: None };
-    assert!( addr.matches(2, "match", &state));
-    assert!( addr.matches(3, "match", &state));
-    assert!( addr.matches(4, "match", &state));
-    assert!(!addr.matches(5, "un-match", &state));
+    assert!( addr.matches(2, "match", &state).0);
+    assert!( addr.matches(3, "match", &state).0);
+    assert!( addr.matches(4, "match", &state).0);
+    assert!(!addr.matches(5, "un-match", &state).0);
 }
 
 #[test]
@@ -266,12 +283,12 @@ fn matches_regex_absolute_range() {
     let re = Regex::new("foo").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re), Line(4)));
 
-    assert!( addr.matches(1, "foo", &EMPTY_STATE));
+    assert!( addr.matches(1, "foo", &EMPTY_STATE).0);
     let state = MatchState { left_match: Some(1), right_match: None };
-    assert!( addr.matches(2, "match", &state));
-    assert!( addr.matches(3, "match", &state));
-    assert!( addr.matches(4, "match", &state));
-    assert!(!addr.matches(5, "un-match", &state));
+    assert!( addr.matches(2, "match", &state).0);
+    assert!( addr.matches(3, "match", &state).0);
+    assert!( addr.matches(4, "match", &state).0);
+    assert!(!addr.matches(5, "un-match", &state).0);
 }
 
 #[test]
@@ -279,12 +296,12 @@ fn matches_regex_empty_absolute_range() {
     let re = Regex::new("foo").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re), Line(2)));
 
-    assert!(!addr.matches(1, "un-match", &EMPTY_STATE));
-    assert!(!addr.matches(2, "un-match", &EMPTY_STATE));
-    assert!( addr.matches(3, "foo", &EMPTY_STATE));
+    assert!(!addr.matches(1, "un-match", &EMPTY_STATE).0);
+    assert!(!addr.matches(2, "un-match", &EMPTY_STATE).0);
+    assert!( addr.matches(3, "foo", &EMPTY_STATE).0);
     let state = MatchState { left_match: Some(3), right_match: None };
-    assert!(!addr.matches(4, "un-match", &state));
-    assert!(!addr.matches(5, "un-match", &state));
+    assert!(!addr.matches(4, "un-match", &state).0);
+    assert!(!addr.matches(5, "un-match", &state).0);
 }
 
 #[test]
@@ -292,12 +309,12 @@ fn matches_absolute_regex_end_range() {
     let re = Regex::new("foo").unwrap();
     let addr = address_range!(AddressRange(Line(2), RegexPattern(re)));
 
-    assert!(!addr.matches(1, "un-match", &EMPTY_STATE));
-    assert!( addr.matches(2, "match", &EMPTY_STATE));
-    assert!( addr.matches(3, "match", &EMPTY_STATE));
-    assert!( addr.matches(4, "foo", &EMPTY_STATE));
+    assert!(!addr.matches(1, "un-match", &EMPTY_STATE).0);
+    assert!( addr.matches(2, "match", &EMPTY_STATE).0);
+    assert!( addr.matches(3, "match", &EMPTY_STATE).0);
+    assert!( addr.matches(4, "foo", &EMPTY_STATE).0);
     let state = MatchState { left_match: None, right_match: Some(4) };
-    assert!(!addr.matches(5, "un-match", &state));
+    assert!(!addr.matches(5, "un-match", &state).0);
 }
 
 #[test]
@@ -306,13 +323,13 @@ fn matches_double_regex_range() {
     let re2 = Regex::new("bar").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re1), RegexPattern(re2)));
 
-    assert!(!addr.matches(1, "un-match", &EMPTY_STATE));
-    assert!( addr.matches(2, "foo", &EMPTY_STATE));
+    assert!(!addr.matches(1, "un-match", &EMPTY_STATE).0);
+    assert!( addr.matches(2, "foo", &EMPTY_STATE).0);
     let state = MatchState { left_match: Some(2), right_match: None };
-    assert!( addr.matches(3, "match", &state));
-    assert!( addr.matches(4, "bar", &state));
+    assert!( addr.matches(3, "match", &state).0);
+    assert!( addr.matches(4, "bar", &state).0);
     let state = MatchState { left_match: Some(2), right_match: Some(4) };
-    assert!(!addr.matches(5, "un-match", &state));
+    assert!(!addr.matches(5, "un-match", &state).0);
 }
 
 
@@ -322,15 +339,15 @@ fn matches_double_regex_range_update() {
     let re2 = Regex::new("bar").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re1), RegexPattern(re2)));
 
-    let (is_match, state) = addr.match_range2(1, "un-match", &EMPTY_STATE);
+    let (is_match, state) = addr.matches(1, "un-match", &EMPTY_STATE);
     assert!(!is_match);
-    let (is_match, state) = addr.match_range2(2, "foo", &state);
+    let (is_match, state) = addr.matches(2, "foo", &state);
     assert!(is_match);
-    let (is_match, state) = addr.match_range2(3, "match", &state);
+    let (is_match, state) = addr.matches(3, "match", &state);
     assert!(is_match);
-    let (is_match, state) = addr.match_range2(4, "bar", &state);
+    let (is_match, state) = addr.matches(4, "bar", &state);
     assert!(is_match);
-    let (is_match, _state) = addr.match_range2(5, "un-match", &state);
+    let (is_match, _state) = addr.matches(5, "un-match", &state);
     assert!(!is_match);
 }
 
@@ -340,14 +357,14 @@ fn matches_double_regex_range_with_multiple_matches_on_same_line() {
     let re2 = Regex::new("bar").unwrap();
     let addr = address_range!(AddressRange(RegexPattern(re1), RegexPattern(re2)));
 
-    let (is_match, state) = addr.match_range2(1, "foo", &EMPTY_STATE);
+    let (is_match, state) = addr.matches(1, "foo", &EMPTY_STATE);
     assert!(is_match, "line 1 failed");
-    let (is_match, state) = addr.match_range2(2, "bar", &state);
+    let (is_match, state) = addr.matches(2, "bar", &state);
     assert!(is_match, "line 2 failed");
-    let (is_match, state) = addr.match_range2(3, "bar", &state);
+    let (is_match, state) = addr.matches(3, "bar", &state);
     assert!(!is_match, "line 3 failed");
-    let (is_match, state) = addr.match_range2(4, "foo bar", &state);
+    let (is_match, state) = addr.matches(4, "foo bar", &state);
     assert!(is_match, "line 4 failed");
-    let (is_match, _state) = addr.match_range2(5, "match", &state);
+    let (is_match, _state) = addr.matches(5, "match", &state);
     assert!(is_match, "line 5 failed");
 }
