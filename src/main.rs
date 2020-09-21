@@ -153,7 +153,7 @@ impl AddressPattern {
             },
             AddressRange(Line(s), Step(count)) => todo!(),
             AddressRange(RegexPattern(s), Line(e)) => {
-                let new_state = if s.is_match("line") { state.match_left(line_number) } else { state.unchanged() };
+                let new_state = if s.is_match(line) { state.match_left(line_number) } else { state.unchanged() };
                 (s.is_match(line) || state.left_match.map_or(false, |_last| line_number <= *e), new_state)
             },
             AddressRange(RegexPattern(s), RegexPattern(e)) => {
