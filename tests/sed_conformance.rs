@@ -29,7 +29,7 @@ macro_rules! pattern_test_force_comment {
                 .output()
                 .expect("Failed to start toggle-comment");
             let sed = Command::new("sed")
-                .arg(format!("{}s/^/# /", $pattern))
+                .arg(format!(r"{}s/^.\+$/# &/", $pattern))
                 .arg("examples/poem.txt")
                 .output()
                 .expect("Failed to start sed");
