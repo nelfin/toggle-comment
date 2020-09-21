@@ -150,18 +150,32 @@ impl AddressPattern {
 
 // --------------------------------
 
-fn try_parse_pattern(pattern_str: &str) -> Result<AddressPattern, &str> {
-    if pattern_str.starts_with("/") {
-        let x = pattern_str.trim_start_matches("/").trim_end_matches("/");
-        return Ok(AddressPattern::new_single(RegexPattern(Regex::new(x).unwrap())));
+fn try_parse_component(s: &str) -> Result<AddressComponent, &str> {
+    if s.starts_with("/") {
+        let x = s.trim_start_matches("/").trim_end_matches("/");
+        return Ok(RegexPattern(Regex::new(x).unwrap()));
     }
-    if let Ok(x) = pattern_str.parse() {
-        return Ok(AddressPattern::new_single(Line(x)));
+    if s.starts_with("+") {
+        return Ok(Relative(s.parse().map_err(|_| "unable to parse relative range")?));
+    } else if let Ok(x) = s.parse() {
+        return Ok(Line(x));
     }
-    let lines: Vec<usize> = pattern_str.split(",")
-        .map(|x| { x.parse().expect("Unable to parse number") })
-        .collect();
-    Ok(AddressPattern::new_range(Line(lines[0]), Line(lines[1])))
+    Err("unable to parse component")
+}
+
+fn try_parse_pattern(s: &str) -> Result<AddressPattern, &str> {
+    let parts: Vec<&str> = s.split(",").take(2).collect();
+    // FIXME: error on too many bits instead of ignore
+    // if parts.len() > 2 {
+    //     return Err("too many bits")
+    // }
+    if parts.len() == 1 {
+        return Ok(AddressPattern::new_single(try_parse_component(parts[0])?));
+    } else if parts.len() == 2 {
+        let (left, right) = (try_parse_component(parts[0])?, try_parse_component(parts[1])?);
+        return Ok(AddressPattern::new_range(left, right));
+    }
+    Err("unimplemented")
 }
 
 arg_enum! {
