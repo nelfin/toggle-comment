@@ -190,8 +190,8 @@ macro_rules! address_range {
     ($range:expr, $negated:expr) => { AddressPattern { pattern: $range, negated: $negated }; };
 }
 
-macro_rules! assert_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!($addr.matches($l, "")); )* }; }
-macro_rules! assert_not_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!(!$addr.matches($l, "")); )* }; }
+macro_rules! assert_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!($addr.matches($l, "", &EMPTY_STATE)); )* }; }
+macro_rules! assert_not_matches_lines { ($addr:expr, $( $l:expr ),*) => { $( assert!(!$addr.matches($l, "", &EMPTY_STATE)); )* }; }
 
 #[test]
 fn zero_address_always_matches() {
@@ -246,4 +246,43 @@ fn matches_range_relative_lines_invert() {
     let addr = address_range!(AddressRange(Line(3), Relative(5)), true);
     assert_not_matches_lines!(addr, 3, 8);
     assert_matches_lines!(addr, 2, 9);
+}
+
+#[test]
+fn matches_regex_relative_range() {
+    let re = Regex::new("foo").unwrap();
+    let addr = address_range!(AddressRange(RegexPattern(re), Relative(3)));
+
+    assert!( addr.matches(1, "foo", &EMPTY_STATE));
+    let state = MatchState { last_match: Some(1) };
+    assert!( addr.matches(2, "match", &state));
+    assert!( addr.matches(3, "match", &state));
+    assert!( addr.matches(4, "match", &state));
+    assert!(!addr.matches(5, "un-match", &state));
+}
+
+#[test]
+fn matches_regex_absolute_range() {
+    let re = Regex::new("foo").unwrap();
+    let addr = address_range!(AddressRange(RegexPattern(re), Line(4)));
+
+    assert!( addr.matches(1, "foo", &EMPTY_STATE));
+    let state = MatchState { last_match: Some(1) };
+    assert!( addr.matches(2, "match", &state));
+    assert!( addr.matches(3, "match", &state));
+    assert!( addr.matches(4, "match", &state));
+    assert!(!addr.matches(5, "un-match", &state));
+}
+
+#[test]
+fn matches_regex_empty_absolute_range() {
+    let re = Regex::new("foo").unwrap();
+    let addr = address_range!(AddressRange(RegexPattern(re), Line(2)));
+
+    assert!(!addr.matches(1, "un-match", &EMPTY_STATE));
+    assert!(!addr.matches(2, "un-match", &EMPTY_STATE));
+    assert!( addr.matches(3, "foo", &EMPTY_STATE));
+    let state = MatchState { last_match: Some(3) };
+    assert!(!addr.matches(4, "un-match", &state));
+    assert!(!addr.matches(5, "un-match", &state));
 }

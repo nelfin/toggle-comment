@@ -65,6 +65,11 @@ struct AddressPattern {
     negated: bool,
 }
 
+struct MatchState {
+    last_match: Option<usize>,
+}
+static EMPTY_STATE: MatchState = MatchState { last_match: None };
+
 use {Address::*, AddressComponent::*};
 impl AddressPattern {
     fn new_single(addr: AddressComponent) -> AddressPattern {
@@ -86,27 +91,33 @@ impl AddressPattern {
         }
     }
 
-    fn matches(&self, line_number: usize, line: &str) -> bool {
+    fn matches(&self, line_number: usize, line: &str, state: &MatchState) -> bool {
         let is_match = match &self.pattern {
             Address::ZeroAddress => true,
             Address::OneAddress(AddressComponent::Relative(_)) => panic!("invalid usage of +N or ~N as first address"),
             Address::OneAddress(AddressComponent::Step(_)) => panic!("invalid usage of +N or ~N as first address"),
             Address::OneAddress(addr) => addr.matches(line_number, line),
-            Address::AddressRange(_, _) => self.match_range(line_number),
+            Address::AddressRange(_, _) => self.match_range(line_number, line, state),
         };
         if self.negated { !is_match } else { is_match }
     }
 
-    fn match_range(&self, line_number: usize) -> bool {
+    fn match_range(&self, line_number: usize, line: &str, state: &MatchState) -> bool {
         assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
         match &self.pattern {
             AddressRange(Line(s), Line(e)) => (*s..*e+1).contains(&line_number),
             AddressRange(Line(s), RegexPattern(e)) => todo!(),
             AddressRange(Line(s), Relative(count)) => (*s..*s+*count+1).contains(&line_number),
             AddressRange(Line(s), Step(count)) => todo!(),
-            AddressRange(RegexPattern(s), Line(e)) => todo!(),
+            AddressRange(RegexPattern(s), Line(e)) => {
+                s.is_match(line) ||
+                    state.last_match.map_or(false, |_last| line_number <= *e)
+            },
             AddressRange(RegexPattern(s), RegexPattern(e)) => todo!(),
-            AddressRange(RegexPattern(s), Relative(count)) => todo!(),
+            AddressRange(RegexPattern(s), Relative(count)) => {
+                s.is_match(line) ||
+                    state.last_match.map_or(false, |last| line_number <= last + count)
+            },
             AddressRange(RegexPattern(s), Step(count)) => todo!(),
             _ => unreachable!("Shouldn't have branched into match_range"),
         }
@@ -173,7 +184,7 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
     let mut output = vec![];
     for (idx, line) in lines.enumerate() {
         let line_number = idx + 1;
-        if pattern.matches(line_number, line) {
+        if pattern.matches(line_number, line, &EMPTY_STATE) {
             output.push(format!("{}", operator(&prefix_pattern, prefix, line)));
         } else {
             output.push(format!("{}", line));
@@ -184,7 +195,7 @@ fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: Comm
 
 fn get_matches<'a>(pattern: &AddressPattern, lines: &Vec<&'a str>) -> Vec<(bool, Vec<&'a str>)> {
     let mut i = lines.iter().enumerate()
-        .map(|(idx, &l)| (pattern.matches(idx+1, l), l))
+        .map(|(idx, &l)| (pattern.matches(idx+1, l, &EMPTY_STATE), l))
         .peekable();
 
     let mut retval = vec![];
