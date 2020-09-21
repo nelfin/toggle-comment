@@ -286,3 +286,16 @@ fn matches_regex_empty_absolute_range() {
     assert!(!addr.matches(4, "un-match", &state));
     assert!(!addr.matches(5, "un-match", &state));
 }
+
+#[test]
+fn matches_absolute_regex_end_range() {
+    let re = Regex::new("foo").unwrap();
+    let addr = address_range!(AddressRange(Line(2), RegexPattern(re)));
+
+    assert!(!addr.matches(1, "un-match", &EMPTY_STATE));
+    assert!( addr.matches(2, "match", &EMPTY_STATE));
+    assert!( addr.matches(3, "match", &EMPTY_STATE));
+    assert!( addr.matches(4, "foo", &EMPTY_STATE));
+    let state = MatchState { last_match: Some(4) };
+    assert!(!addr.matches(5, "un-match", &state));
+}

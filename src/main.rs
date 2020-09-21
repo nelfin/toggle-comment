@@ -106,7 +106,11 @@ impl AddressPattern {
         assert!(match &self.pattern { Address::AddressRange { .. } => true, _ => false }, "Unexpected type");
         match &self.pattern {
             AddressRange(Line(s), Line(e)) => (*s..*e+1).contains(&line_number),
-            AddressRange(Line(s), RegexPattern(e)) => todo!(),
+            AddressRange(Line(s), RegexPattern(e)) => {
+                // TODO: update state with regex match
+                (line_number >= *s) &&
+                    state.last_match.is_none()
+            },
             AddressRange(Line(s), Relative(count)) => (*s..*s+*count+1).contains(&line_number),
             AddressRange(Line(s), Step(count)) => todo!(),
             AddressRange(RegexPattern(s), Line(e)) => {
