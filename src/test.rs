@@ -38,7 +38,7 @@ fn toggle_initial_uncomment() {
         "# #c = 3",
         "# d = 4",
     ];
-    let actual = toggle_block(&prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -60,7 +60,7 @@ fn toggle_initial_comment() {
         "# # c = 3",
         "# d = 4",
     ];
-    let actual = toggle_block(&prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -82,7 +82,7 @@ fn toggle_comment_initial_blank() {
         "#         # NOTE: choose better names",
         "#         return bar",
     ];
-    let actual = toggle_block(&prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
     assert_eq!(actual, expected);
 }
 
@@ -178,7 +178,7 @@ fn all_blank_lines_are_unchanged() {
     assert!(!will_comment(&PREFIX, &expected));
 
     let prefix = "# ";
-    let actual = toggle_block(&PREFIX, prefix, &expected);
+    let actual = comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &expected);
     assert_eq!(actual, expected);
 }
 
@@ -196,9 +196,9 @@ fn round_trip() {
         "# # not all lines commented",
         "# abc = 123",
     ];
-    let actual = toggle_block(&PREFIX, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &example);
     assert_eq!(actual, expected);
-    assert_eq!(toggle_block(&PREFIX, prefix, &actual), example);
+    assert_eq!(comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &actual), example);
 }
 
 use {Address::AddressRange, AddressComponent::*};

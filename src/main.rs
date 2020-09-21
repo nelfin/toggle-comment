@@ -210,11 +210,10 @@ fn uncomment_line(prefix_pattern: &Regex, _prefix: &str, line: &str) -> String {
     prefix_pattern.replace(line, "$head$tail").to_string()
 }
 
-fn comment_lines(lines: Lines, pattern: AddressPattern, prefix: &str, mode: CommentingMode) -> Vec<String> {
+fn comment_lines(lines: Lines, pattern: &AddressPattern, prefix: &str, mode: &CommentingMode) -> Vec<String> {
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
     let operator = match mode {
         CommentingMode::Comment => comment_line,
-        // CommentingMode::Toggle if pattern_is_range => toggle_block,
         CommentingMode::Toggle => toggle_line,
         CommentingMode::Uncomment => uncomment_line,
     };
@@ -271,12 +270,13 @@ fn will_comment<S: AsRef<str>>(prefix_pattern: &Regex, lines: &Vec<S>) -> bool {
     return false;
 }
 
-fn toggle_block<S: AsRef<str>>(prefix_pattern: &Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
+fn comment_block<S: AsRef<str>>(mode: &CommentingMode, prefix_pattern: &Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
     let blank = Regex::new(r"^\s*$").unwrap();
-    let operator: fn(&Regex, &str, &str) -> String = if will_comment(prefix_pattern, lines) {
-        force_comment_line
-    } else {
-        uncomment_line
+    let operator: fn(&Regex, &str, &str) -> String = match mode {
+        CommentingMode::Comment => comment_line,
+        CommentingMode::Uncomment => uncomment_line,
+        CommentingMode::Toggle if will_comment(prefix_pattern, lines) => force_comment_line,
+        CommentingMode::Toggle => uncomment_line,  // otherwise
     };
     let mut output = vec![];
 
@@ -353,22 +353,25 @@ fn main() {
     };
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
     let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-    let toggling = match mode { CommentingMode::Toggle => true, _ => false };
     let initial_state = EMPTY_STATE.unchanged();
 
-    if toggling && pattern.is_range() {
+    if pattern.is_range() {
         // TODO: don't collect all these lines
         for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect(), initial_state) {
             if is_match {
-                printlines!(toggle_block(&prefix_pattern, prefix, &chunk));
+                printlines!(comment_block(&mode, &prefix_pattern, prefix, &chunk));
             } else {
                 printlines!(chunk);
             }
         }
     } else {
+        // FIXME: consolidate, assumptions have changed about block/non-block
+        //
+        // <previous-comment>
         // NOTE: on force-comment or force-uncomment, the per-line behaviour and
         // block behaviour is the same, hence we do not branch on pattern_is_range
-        printlines!(comment_lines(contents.lines(), pattern, prefix, mode));
+        // </previous-comment>
+        printlines!(comment_lines(contents.lines(), &pattern, prefix, &mode));
     }
 }
 
