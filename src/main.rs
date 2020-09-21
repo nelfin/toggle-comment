@@ -121,8 +121,12 @@ impl AddressPattern {
                 ((*s..*e+1).contains(&line_number), state.unchanged())
             },
             AddressRange(Line(s), RegexPattern(e)) => {
-                let new_state = if e.is_match(line) { state.match_right(line_number) } else { state.unchanged() };
-                ((line_number >= *s) && state.right_match.is_none(), new_state)
+                match state.right_match {
+                    // NOTE: line_number > *s guard captures behaviour with 0,/regex/ addresses
+                    None if e.is_match(line) && line_number > *s => (true, MatchState { left_match: None, right_match: Some(line_number) }),
+                    None if line_number >= *s => (true, state.unchanged()),
+                    _ => (false, state.unchanged()),
+                }
             },
             AddressRange(Line(s), Relative(count)) => {
                 ((*s..*s+*count+1).contains(&line_number), state.unchanged())
