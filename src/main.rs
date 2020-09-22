@@ -84,6 +84,10 @@ impl MatchState {
 
 use {Address::*, AddressComponent::*};
 impl AddressPattern {
+    fn new_zero() -> AddressPattern {
+        AddressPattern { pattern: ZeroAddress, negated: false }
+    }
+
     fn new_single(addr: AddressComponent) -> AddressPattern {
         AddressPattern { pattern: OneAddress(addr), negated: false }
     }
@@ -180,7 +184,11 @@ fn try_parse_pattern(s: &str) -> Result<AddressPattern, &str> {
     //     return Err("too many bits")
     // }
     let pattern = if parts.len() == 1 {
-        Ok(AddressPattern::new_single(try_parse_component(parts[0])?))
+        if parts[0].is_empty() {
+            Ok(AddressPattern::new_zero())
+        } else {
+            Ok(AddressPattern::new_single(try_parse_component(parts[0])?))
+        }
     } else if parts.len() == 2 {
         let (left, right) = (try_parse_component(parts[0])?, try_parse_component(parts[1])?);
         Ok(AddressPattern::new_range(left, right))

@@ -68,3 +68,6 @@ pattern_test_force_comment!(negated_regex_absolute_range, "/public/,1!");
 pattern_test_force_comment!(negated_regex_relative_from_first_match, "/The/,+4!");
 pattern_test_force_comment!(negated_nonmatched_first_address, "1,/nobody/!");
 pattern_test_force_comment!(negated_matched_first_address, "0,/nobody/!");
+
+pattern_test_force_comment!(empty_pattern, "");
+pattern_test_force_comment!(negated_empty_pattern, "!"); // lol
