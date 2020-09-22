@@ -55,3 +55,11 @@ pattern_test_force_comment!(regex_absolute_range, "/public/,1");  // only matche
 pattern_test_force_comment!(regex_relative_from_first_match, "/The/,+4");  // should only match 5 lines, second "The" doesn't reset counter
 pattern_test_force_comment!(nonmatched_first_address, "1,/nobody/");
 pattern_test_force_comment!(matched_first_address, "0,/nobody/"); // GNU extension
+
+pattern_test_force_comment!(negated_single_line, "2!");
+pattern_test_force_comment!(negated_single_line_range, "3,3!");
+pattern_test_force_comment!(negated_simple_range, "3,7!");
+pattern_test_force_comment!(negated_simple_regex, "/you/!");
+pattern_test_force_comment!(negated_relative_range, "5,+2!");
+pattern_test_force_comment!(negated_regex_range, "/nobody/,/somebody/!");
+pattern_test_force_comment!(negated_regex_relative_range, "/banish/,+3!");

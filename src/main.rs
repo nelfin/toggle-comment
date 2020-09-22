@@ -172,18 +172,26 @@ fn try_parse_component(s: &str) -> Result<AddressComponent, &str> {
 }
 
 fn try_parse_pattern(s: &str) -> Result<AddressPattern, &str> {
+    let negated = s.ends_with("!");
+    let s = s.trim_end_matches("!");
     let parts: Vec<&str> = s.split(",").take(2).collect();
     // FIXME: error on too many bits instead of ignore
     // if parts.len() > 2 {
     //     return Err("too many bits")
     // }
-    if parts.len() == 1 {
-        return Ok(AddressPattern::new_single(try_parse_component(parts[0])?));
+    let pattern = if parts.len() == 1 {
+        Ok(AddressPattern::new_single(try_parse_component(parts[0])?))
     } else if parts.len() == 2 {
         let (left, right) = (try_parse_component(parts[0])?, try_parse_component(parts[1])?);
-        return Ok(AddressPattern::new_range(left, right));
+        Ok(AddressPattern::new_range(left, right))
+    } else {
+        Err("unimplemented")
+    };
+    if negated {
+        pattern.map(|p| p.invert())
+    } else {
+        pattern
     }
-    Err("unimplemented")
 }
 
 arg_enum! {
