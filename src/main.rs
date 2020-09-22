@@ -42,6 +42,7 @@ enum AddressComponent {
     RegexPattern(Regex),    // /pattern/
     Relative(usize),        // +N
     Step(usize),            // ~N
+//  Multiple(usize),        // ,~N  (GNU extension)
 }
 
 impl AddressComponent {

@@ -15,8 +15,9 @@ fn smoke_test() {
 }
 
 macro_rules! pattern_test_force_comment {
-    ($name:ident, $pattern:expr) => {
+    ($(#[$attr:meta])? $name:ident, $pattern:expr) => {
         #[test]
+        $(#[$attr])?
         fn $name() {
             let mut e = std::env::current_exe().unwrap();
             e.pop(); // bin name
@@ -71,3 +72,13 @@ pattern_test_force_comment!(negated_matched_first_address, "0,/nobody/!");
 
 pattern_test_force_comment!(empty_pattern, "");
 pattern_test_force_comment!(negated_empty_pattern, "!"); // lol
+
+pattern_test_force_comment!(#[ignore] trivial_step, "1~1");
+pattern_test_force_comment!(#[ignore] single_step, "2~3");
+pattern_test_force_comment!(#[ignore] negated_single_step, "2~3!");
+
+pattern_test_force_comment!(#[ignore] trivial_multiple, "1,~1");
+pattern_test_force_comment!(#[ignore] single_multiple, "2,~5");
+pattern_test_force_comment!(#[ignore] regex_multiple, "/you/,~5");
+pattern_test_force_comment!(#[ignore] negated_single_multiple, "2,~5!");
+pattern_test_force_comment!(#[ignore] negated_regex_multiple, "/you/,~5!");
