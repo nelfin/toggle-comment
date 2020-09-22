@@ -56,7 +56,7 @@ impl AddressComponent {
 }
 
 enum Address {
-    ZeroAddress,
+    ZeroAddress,  // FIXME: treat zero addresses as a range of whole file
     OneAddress(AddressComponent),
     AddressRange(AddressComponent, AddressComponent),
 }
@@ -295,12 +295,13 @@ fn will_comment<S: AsRef<str>>(prefix_pattern: &Regex, lines: &Vec<S>) -> bool {
     return false;
 }
 
-fn comment_block<S: AsRef<str>>(mode: &CommentingMode, prefix_pattern: &Regex, prefix: &str, lines: &Vec<S>) -> Vec<String> {
+fn comment_block<S: AsRef<str>>(mode: &CommentingMode, prefix: &str, lines: &Vec<S>) -> Vec<String> {
+    let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
     let blank = Regex::new(r"^\s*$").unwrap();
     let operator: fn(&Regex, &str, &str) -> String = match mode {
         CommentingMode::Comment => comment_line,
         CommentingMode::Uncomment => uncomment_line,
-        CommentingMode::Toggle if will_comment(prefix_pattern, lines) => force_comment_line,
+        CommentingMode::Toggle if will_comment(&prefix_pattern, lines) => force_comment_line,
         CommentingMode::Toggle => uncomment_line,  // otherwise
     };
     let mut output = vec![];
@@ -322,12 +323,21 @@ fn get_bin_name() -> OsString {
     p.file_name().unwrap_or(OsStr::new("<UNSET>")).into()
 }
 
-macro_rules! printlines {
-    ($lines:expr) => {
-        for line in $lines {
-            println!("{}", line);
+fn body(contents: Lines, initial_state: MatchState, pattern: &AddressPattern, prefix: &str, mode: &CommentingMode) -> Vec<String> {
+    let mut retval: Vec<String> = vec![];
+    if pattern.is_range() {
+        // TODO: don't collect all these lines
+        for (is_match, chunk) in get_matches(&pattern, &contents.collect(), initial_state) {
+            if is_match {
+                retval.extend(comment_block(&mode, &prefix, &chunk));
+            } else {
+                retval.extend(chunk.iter().map(|s| s.to_string()));
+            }
         }
-    };
+    } else {
+        retval.extend(comment_lines(contents, &pattern, prefix, &mode));
+    }
+    retval
 }
 
 fn main() {
@@ -377,26 +387,10 @@ fn main() {
         buffer
     };
     let prefix = args.value_of("comment_prefix").unwrap_or("# ");
-    let prefix_pattern: Regex = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
     let initial_state = EMPTY_STATE.unchanged();
 
-    if pattern.is_range() {
-        // TODO: don't collect all these lines
-        for (is_match, chunk) in get_matches(&pattern, &contents.lines().collect(), initial_state) {
-            if is_match {
-                printlines!(comment_block(&mode, &prefix_pattern, prefix, &chunk));
-            } else {
-                printlines!(chunk);
-            }
-        }
-    } else {
-        // FIXME: consolidate, assumptions have changed about block/non-block
-        //
-        // <previous-comment>
-        // NOTE: on force-comment or force-uncomment, the per-line behaviour and
-        // block behaviour is the same, hence we do not branch on pattern_is_range
-        // </previous-comment>
-        printlines!(comment_lines(contents.lines(), &pattern, prefix, &mode));
+    for line in body(contents.lines(), initial_state, &pattern, prefix, &mode) {
+        println!("{}", line);
     }
 }
 

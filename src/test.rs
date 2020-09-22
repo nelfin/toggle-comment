@@ -28,17 +28,13 @@ fn toggle_initial_uncomment() {
         "#c = 3",
         "d = 4",
     ];
-
-    let prefix = "# ";
-    let prefix_pattern = Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-
     let expected = vec![
         "# a = 1",
         "# b = 2",
         "# #c = 3",
         "# d = 4",
     ];
-    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, "# ", &example);
     assert_eq!(actual, expected);
 }
 
@@ -50,17 +46,13 @@ fn toggle_initial_comment() {
         "# c = 3",
         "d = 4"
     ];
-
-    let prefix = "# ";
-    let prefix_pattern= Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-
     let expected = vec![
         "# # a = 1",
         "# b = 2",
         "# # c = 3",
         "# d = 4",
     ];
-    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, "# ", &example);
     assert_eq!(actual, expected);
 }
 
@@ -72,17 +64,13 @@ fn toggle_comment_initial_blank() {
         "        # NOTE: choose better names",
         "        return bar",
     ];
-
-    let prefix = "# ";
-    let prefix_pattern= Regex::new(&format!(r"^(?P<head>\s*){}(?P<tail>.*?)$", prefix)).unwrap();
-
     let expected = vec![
         "    ",
         "#     def foo(self, bar):",
         "#         # NOTE: choose better names",
         "#         return bar",
     ];
-    let actual = comment_block(&CommentingMode::Toggle, &prefix_pattern, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, "# ", &example);
     assert_eq!(actual, expected);
 }
 
@@ -178,7 +166,7 @@ fn all_blank_lines_are_unchanged() {
     assert!(!will_comment(&PREFIX, &expected));
 
     let prefix = "# ";
-    let actual = comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &expected);
+    let actual = comment_block(&CommentingMode::Toggle, prefix, &expected);
     assert_eq!(actual, expected);
 }
 
@@ -188,17 +176,13 @@ fn round_trip() {
         "# not all lines commented",
         "abc = 123",
     ];
-
-    let prefix = "# ";
-
-
     let expected = vec![
         "# # not all lines commented",
         "# abc = 123",
     ];
-    let actual = comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &example);
+    let actual = comment_block(&CommentingMode::Toggle, "# ", &example);
     assert_eq!(actual, expected);
-    assert_eq!(comment_block(&CommentingMode::Toggle, &PREFIX, prefix, &actual), example);
+    assert_eq!(comment_block(&CommentingMode::Toggle, "# ", &actual), example);
 }
 
 use {Address::AddressRange, AddressComponent::*};
