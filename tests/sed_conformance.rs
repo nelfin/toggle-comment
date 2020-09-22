@@ -29,7 +29,7 @@ macro_rules! pattern_test_force_comment {
                 .output()
                 .expect("Failed to start toggle-comment");
             let sed = Command::new("sed")
-                .arg(format!(r"{}s/^.\+$/# &/", $pattern))
+                .arg(format!(r"{}s/^/# /", $pattern))
                 .arg("examples/poem.txt")
                 .output()
                 .expect("Failed to start sed");
@@ -63,3 +63,8 @@ pattern_test_force_comment!(negated_simple_regex, "/you/!");
 pattern_test_force_comment!(negated_relative_range, "5,+2!");
 pattern_test_force_comment!(negated_regex_range, "/nobody/,/somebody/!");
 pattern_test_force_comment!(negated_regex_relative_range, "/banish/,+3!");
+pattern_test_force_comment!(negated_double_regex_relative_range, "/re/,+2!");
+pattern_test_force_comment!(negated_regex_absolute_range, "/public/,1!");
+pattern_test_force_comment!(negated_regex_relative_from_first_match, "/The/,+4!");
+pattern_test_force_comment!(negated_nonmatched_first_address, "1,/nobody/!");
+pattern_test_force_comment!(negated_matched_first_address, "0,/nobody/!");
