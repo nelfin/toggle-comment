@@ -185,6 +185,23 @@ fn round_trip() {
     assert_eq!(comment_block(&CommentingMode::Toggle, "# ", &actual), example);
 }
 
+#[test]
+fn zero_address_toggles_whole_file_not_individual_lines() {
+    let example = vec![
+        "a = 1",
+        "# b = 2",
+        "c = 3",
+    ].join("\n");
+    let expected = vec![
+        "# a = 1",
+        "# # b = 2",
+        "# c = 3",
+    ];
+    let pattern = AddressPattern::new_zero();
+    let actual: Vec<String> = body(example.lines(), EMPTY_STATE.unchanged(), &pattern, "# ", &CommentingMode::Toggle);
+    assert_eq!(actual, expected);
+}
+
 use {Address::AddressRange, AddressComponent::*};
 macro_rules! address_range {
     ($range:expr) => { AddressPattern { pattern: $range, negated: false }; };

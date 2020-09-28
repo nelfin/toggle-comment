@@ -103,7 +103,7 @@ impl AddressPattern {
 
     fn is_range(&self) -> bool {
         match &self.pattern {
-            AddressRange(_, _) => true,
+            ZeroAddress | AddressRange(_, _) => true,
             _ => false,
         }
     }
