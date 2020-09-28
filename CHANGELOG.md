@@ -1,6 +1,6 @@
 # toggle-comment
 
-## Unreleased
+## [0.5.0] - 2020-09-28
 - Add support for empty patterns (matches the whole file)
 - Add support for negated patterns (e.g. /regex/!)
 

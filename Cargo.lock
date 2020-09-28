@@ -67,7 +67,7 @@ dependencies = [
 
 [[package]]
 name = "toggle-comment"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "clap 2.33.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
